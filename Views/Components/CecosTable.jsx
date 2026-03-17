@@ -21,18 +21,6 @@ const CLIENT_COLORS = [
   '#1d4ed8', '#be185d', '#047857', '#7e22ce', '#ea580c',
 ];
 
-const BASE_ROOT_GROUPS = [
-  { codigo: '0101', nombre: 'MQ' },
-  { codigo: '0102', nombre: 'MODIFICACIONES' },
-  { codigo: '0103', nombre: 'KAM' },
-  { codigo: '0104', nombre: 'GABINETE' },
-  { codigo: '0105', nombre: 'OTROS CLIENTES' },
-  { codigo: '0106', nombre: 'RED INTERNA' },
-  { codigo: '0107', nombre: 'SOLGAS' },
-  { codigo: '108', nombre: 'PROYECTOS SUR' },
-  { codigo: '109', nombre: 'CEYA' },
-];
-
 export default function CecosTable({ cecos, loading, onEdit, onDelete, permissions = {} }) {
   const [expanded, setExpanded] = useState(() => new Set());
 
@@ -43,12 +31,23 @@ export default function CecosTable({ cecos, loading, onEdit, onDelete, permissio
   const handleConfirmed = useCallback(() => { onDelete?.(confirmModal.id); closeConfirm(); }, [confirmModal.id, onDelete, closeConfirm]);
 
   const grouped = useMemo(() => {
-    const basePrefixes = BASE_ROOT_GROUPS.map((group) => group.codigo);
+    const rootGroups = (cecos || [])
+      .filter((item) => Number(item.nivel) === 0 && !item.parent_id && !item.tipo_subcuenta)
+      .sort((a, b) => (a.codigo || '').localeCompare(b.codigo || ''))
+      .map((item) => ({
+        id: item.id,
+        codigo: item.codigo,
+        nombre: item.nombre,
+        isCustomParent: false,
+      }));
+
+    const basePrefixes = rootGroups.map((group) => group.codigo);
+
     const customParents = (cecos || [])
       .filter((item) => {
         const code = item.codigo || '';
         const isBaseGroup = basePrefixes.some((prefix) => code.startsWith(prefix));
-        const isRootParent = !item.parent_id && !item.tipo_subcuenta;
+        const isRootParent = Number(item.nivel) === 1 && !item.parent_id && !item.tipo_subcuenta;
         return !isBaseGroup && isRootParent;
       })
       .sort((a, b) => (a.codigo || '').localeCompare(b.codigo || ''))
@@ -59,7 +58,7 @@ export default function CecosTable({ cecos, loading, onEdit, onDelete, permissio
         isCustomParent: true,
       }));
 
-    const allGroups = [...BASE_ROOT_GROUPS, ...customParents];
+    const allGroups = [...rootGroups, ...customParents];
 
     return allGroups.map((group) => {
       const rows = (cecos || [])

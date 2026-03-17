@@ -7,8 +7,6 @@ use Modulos_ERP\CecosKrsft\Models\Ceco;
 
 class CecoHierarchyService
 {
-    private const GRUPOS_VALIDOS = ['0101', '0102', '0103', '0104', '0105', '0106', '0107', '108', '109'];
-
     private const SUBCUENTAS = [
         ['tipo' => '01', 'nombre_suffix' => 'MO (Mano de Obra)'],
         ['tipo' => '02', 'nombre_suffix' => 'Gastos Directos'],
@@ -90,7 +88,12 @@ class CecoHierarchyService
 
     private function getNextConsecutiveCode(string $tipoCliente): string
     {
-        $isBaseGroup = in_array($tipoCliente, self::GRUPOS_VALIDOS, true);
+        $isBaseGroup = Ceco::where('codigo', $tipoCliente)
+            ->where('nivel', 0)
+            ->whereNull('parent_id')
+            ->whereNull('tipo_subcuenta')
+            ->exists();
+
         $isCustomParent = Ceco::where('codigo', $tipoCliente)
             ->where('nivel', 1)
             ->whereNull('parent_id')
@@ -98,7 +101,7 @@ class CecoHierarchyService
             ->exists();
 
         if (!$isBaseGroup && !$isCustomParent) {
-            throw new \Exception("Grupo no válido: {$tipoCliente}. Debe ser 0101-0109 o un CECO padre existente");
+            throw new \Exception("Grupo no válido: {$tipoCliente}. Debe existir en la tabla cecos como grupo raíz o CECO padre.");
         }
 
         // La secuencia se calcula por prefijo de código del grupo (ej: 0101xx, 0102xx)

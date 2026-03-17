@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { validateCecoData, createEmptyCeco, GRUPOS_CECO } from '../utils/helpers';
+import { validateCecoData, createEmptyCeco } from '../utils/helpers';
 
 export default function CecoModal({ isOpen, onClose, onSubmit, initialData, cecos = [] }) {
   const [data, setData] = useState(createEmptyCeco());
@@ -72,21 +72,28 @@ export default function CecoModal({ isOpen, onClose, onSubmit, initialData, ceco
 
   const isEditMode = !!initialData;
   const canCreateWithSubcuentas = !isEditMode && tipoCliente && tipoCliente !== 'MANUAL';
-  const selectedCustomParentCode = tipoCliente?.startsWith('CUSTOM:')
+    const availableRootGroups = useMemo(() => {
+      return (cecos || [])
+        .filter((item) => Number(item.nivel) === 0 && !item.parent_id && !item.tipo_subcuenta)
+        .sort((a, b) => (a.codigo || '').localeCompare(b.codigo || ''));
+    }, [cecos]);
+
+    const selectedCustomParentCode = tipoCliente?.startsWith('CUSTOM:')
     ? tipoCliente.replace('CUSTOM:', '')
     : null;
+
   const customParentCecos = useMemo(() => {
-    const baseGroupCodes = Object.keys(GRUPOS_CECO);
+      const baseGroupCodes = availableRootGroups.map((group) => group.codigo || '');
 
     return (cecos || [])
       .filter((item) => {
         const code = item.codigo || '';
         const isBaseGroup = baseGroupCodes.some((prefix) => code.startsWith(prefix));
-        const isRootParent = !item.parent_id && !item.tipo_subcuenta;
+          const isRootParent = Number(item.nivel) === 1 && !item.parent_id && !item.tipo_subcuenta;
         return !isBaseGroup && isRootParent;
       })
       .sort((a, b) => (a.codigo || '').localeCompare(b.codigo || ''));
-  }, [cecos]);
+    }, [cecos, availableRootGroups]);
 
   if (!isOpen) return null;
 
@@ -132,12 +139,12 @@ export default function CecoModal({ isOpen, onClose, onSubmit, initialData, ceco
                 Seleccionar Grupo de Operaciones *
               </legend>
               <div className="space-y-2 mt-3">
-                <div className="grid grid-cols-3 gap-2">
-                  {Object.entries(GRUPOS_CECO).map(([codigo, grupo]) => (
+                  <div className="grid grid-cols-3 gap-2">
+                    {availableRootGroups.map((grupo) => (
                     <label 
-                      key={codigo} 
+                        key={grupo.id || grupo.codigo}
                       className={`flex items-center justify-center h-11 px-3 rounded border transition-all cursor-pointer ${
-                        tipoCliente === codigo 
+                          tipoCliente === grupo.codigo
                           ? 'border-teal-500 bg-teal-50 shadow-sm' 
                           : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
                       }`}
@@ -145,8 +152,8 @@ export default function CecoModal({ isOpen, onClose, onSubmit, initialData, ceco
                       <input
                         type="radio"
                         name="tipoCliente"
-                        value={codigo}
-                        checked={tipoCliente === codigo}
+                          value={grupo.codigo}
+                          checked={tipoCliente === grupo.codigo}
                         onChange={(e) => {
                           setTipoCliente(e.target.value);
                           setIsCreatingWithSubcuentas(true);
@@ -154,11 +161,17 @@ export default function CecoModal({ isOpen, onClose, onSubmit, initialData, ceco
                         className="sr-only"
                       />
                       <span className="text-xs font-semibold text-gray-800 whitespace-nowrap">
-                        {codigo} - {grupo.nombre}
+                          {grupo.codigo} - {grupo.nombre}
                       </span>
                     </label>
                   ))}
                 </div>
+
+                  {availableRootGroups.length === 0 && (
+                    <p className="text-xs text-amber-700 bg-amber-50 rounded border border-amber-200 px-3 py-2">
+                      No hay grupos raíz en la base de datos. Puedes crear CECO personalizado.
+                    </p>
+                  )}
 
                 {customParentCecos.length > 0 && (
                   <div className="grid grid-cols-3 gap-2">

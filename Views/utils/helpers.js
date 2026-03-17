@@ -11,21 +11,6 @@ export function formatCeco(ceco) {
 }
 
 /**
- * Grupos de CECO disponibles
- */
-export const GRUPOS_CECO = {
-  '0101': { codigo: '0101', nombre: 'MQ', descripcion: 'Grupo MQ' },
-  '0102': { codigo: '0102', nombre: 'MODIFICACIONES', descripcion: 'Grupo Modificaciones' },
-  '0103': { codigo: '0103', nombre: 'KAM', descripcion: 'Grupo KAM' },
-  '0104': { codigo: '0104', nombre: 'GABINETE', descripcion: 'Grupo Gabinete' },
-  '0105': { codigo: '0105', nombre: 'Otros Clientes', descripcion: 'Clientes Externos' },
-  '0106': { codigo: '0106', nombre: 'Red Interna', descripcion: 'Red interna' },
-  '0107': { codigo: '0107', nombre: 'Solgas', descripcion: 'Grupo Solgas' },
-  '0108': { codigo: '0108', nombre: 'Proyectos Sur', descripcion: 'Grupo Proyectos Sur' },
-  '0109': { codigo: '0109', nombre: 'Ceya', descripcion: 'Grupo Ceya' },
-};
-
-/**
  * Valida datos básicos de un CECO
  * @param {Object} data - Datos a validar
  * @returns {Object} { isValid: boolean, errors: Object }
