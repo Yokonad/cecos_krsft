@@ -59,6 +59,44 @@ class Ceco extends Model
     }
 
     /**
+     * Relación con los proyectos activos asociados a este CECO
+     */
+    public function activeProjects(): HasMany
+    {
+        return $this->hasMany(\Modulos_ERP\ProyectosKrsft\Models\Project::class, 'ceco_id')->where('status', 'active');
+    }
+
+    /**
+     * Verifica si el CECO tiene proyectos activos
+     */
+    public function hasActiveProjects(): bool
+    {
+        return $this->activeProjects()->exists();
+    }
+
+    /**
+     * Scope para filtrar CECOs válidos para enrolamiento de proyectos
+     * Un CECO es válido si:
+     * - nivel = 1 (centro de costo cliente, no grupo raíz)
+     * - no tiene parent_id (no es hijo de otro CECO)
+     * - no tiene tipo_subcuenta (no es MO/Gastos Directos/Gastos Indirectos)
+     * - razon_social coincide (case-insensitive, trimmed)
+     * - tiene al menos un proyecto activo
+     */
+    public function scopeValidForEnrollment($query, string $razonSocial)
+    {
+        if (empty(trim($razonSocial))) {
+            return $query->whereRaw('1 = 0'); // empty collection
+        }
+
+        return $query->where('nivel', 1)
+            ->whereNull('parent_id')
+            ->whereNull('tipo_subcuenta')
+            ->whereRaw('TRIM(LOWER(razon_social)) = ?', [trim(mb_strtolower($razonSocial))])
+            ->whereHas('activeProjects');
+    }
+
+    /**
      * Relación con los hijos jerárquicos
      */
     public function children(): HasMany

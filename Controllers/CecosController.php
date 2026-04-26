@@ -3,6 +3,7 @@
 namespace Modulos_ERP\CecosKrsft\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Services\LogKrsftService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -82,12 +83,28 @@ class CecosController extends Controller
                 $request->user()->id ?? null,
             );
 
+            app(\App\Services\LogKrsftService::class)->log(
+                module: 'cecoskrsft',
+                action: 'create_ceco_hierarchy',
+                message: "CECO y subcuentas creados: {$validated['nombre']}",
+                level: 'info',
+                userId: auth()->id(),
+                userName: auth()->user()?->name,
+                extra: ['nombre' => $validated['nombre'], 'tipo' => $validated['tipo_cliente']]
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Cliente y subcuentas creados exitosamente',
                 'data' => $result,
             ]);
         } catch (\Exception $e) {
+            app(\App\Services\LogKrsftService::class)->logError(
+                module: 'cecoskrsft',
+                action: 'create_ceco_hierarchy_error',
+                message: "Error al crear jerarquía CECO {$validated['nombre']}: " . $e->getMessage()
+            );
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al crear el cliente: ' . $e->getMessage(),
@@ -120,6 +137,16 @@ class CecosController extends Controller
             'updated_at' => now(),
         ]);
 
+        app(\App\Services\LogKrsftService::class)->log(
+            module: 'cecoskrsft',
+            action: 'create_ceco',
+            message: "CECO creado: {$validated['codigo']} - {$validated['nombre']}",
+            level: 'info',
+            userId: auth()->id(),
+            userName: auth()->user()?->name,
+            extra: ['ceco_id' => $id, 'codigo' => $validated['codigo']]
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Centro de costo creado exitosamente',
@@ -140,6 +167,8 @@ class CecosController extends Controller
             'estado' => 'boolean',
         ]);
 
+        $beforeData = DB::table($this->cecosTable)->find($id);
+
         DB::table($this->cecosTable)->where('id', $id)->update([
             'codigo' => $validated['codigo'],
             'nombre' => $validated['nombre'],
@@ -149,10 +178,27 @@ class CecosController extends Controller
             'updated_at' => now(),
         ]);
 
+        $afterData = DB::table($this->cecosTable)->find($id);
+
+        LogKrsftService::log(
+            module: 'cecoskrsft',
+            action: 'update_ceco',
+            message: "CECO actualizado: {$validated['codigo']} - {$validated['nombre']}",
+            level: 'info',
+            userId: auth()->id(),
+            userName: auth()->user()?->name,
+            extra: [
+                'ceco_id' => $id,
+                'codigo' => $validated['codigo'],
+                'before' => ['codigo' => $beforeData->codigo, 'nombre' => $beforeData->nombre, 'estado' => $beforeData->estado],
+                'after' => ['codigo' => $afterData->codigo, 'nombre' => $afterData->nombre, 'estado' => $afterData->estado]
+            ]
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Centro de costo actualizado exitosamente',
-            'data' => DB::table($this->cecosTable)->find($id),
+            'data' => $afterData,
         ]);
     }
 
@@ -185,6 +231,16 @@ class CecosController extends Controller
             }
             $ceco->delete();
         });
+
+        app(\App\Services\LogKrsftService::class)->log(
+            module: 'cecoskrsft',
+            action: 'delete_ceco',
+            message: "CECO eliminado: {$ceco->codigo} - {$ceco->nombre}",
+            level: 'warning',
+            userId: auth()->id(),
+            userName: auth()->user()?->name,
+            extra: ['ceco_id' => $id, 'codigo' => $ceco->codigo]
+        );
 
         return response()->json([
             'success' => true,
