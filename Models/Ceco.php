@@ -86,13 +86,52 @@ class Ceco extends Model
     public function scopeValidForEnrollment($query, string $razonSocial)
     {
         if (empty(trim($razonSocial))) {
-            return $query->whereRaw('1 = 0'); // empty collection
+            return $query->whereRaw('1 = 0');
+        }
+
+        // Versión exacta (con acentos, tal cual)
+        $exactQuery = trim(mb_strtolower($razonSocial));
+        
+        // Versión normalizada (sin acentos, espacios simples)
+        $normalized = strtr($exactQuery, [
+            'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
+            'ü' => 'u', 'ñ' => 'n',
+        ]);
+        $normalized = preg_replace('/\s+/', ' ', $normalized);
+        $normalized = trim($normalized);
+        
+        if (empty($normalized)) {
+            return $query->whereRaw('1 = 0');
         }
 
         return $query->where('nivel', 1)
             ->whereNull('parent_id')
             ->whereNull('tipo_subcuenta')
-            ->whereRaw('TRIM(LOWER(razon_social)) = ?', [trim(mb_strtolower($razonSocial))])
+            ->where(function($q) use ($exactQuery, $normalized) {
+                // 1. Coincidencia exacta original
+                $q->whereRaw('LOWER(TRIM(razon_social)) = ?', [$exactQuery])
+                  ->orWhereRaw('LOWER(TRIM(nombre)) = ?', [$exactQuery]);
+                
+                // 2. Coincidencia sin acentos (REPLACE para cada vocal)
+                $q->orWhereRaw('LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(razon_social, "ó","o"), "á","a"), "é","e"), "í","i"), "ú","u"))) = ?', [$normalized])
+                  ->orWhereRaw('LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(nombre, "ó","o"), "á","a"), "é","e"), "í","i"), "ú","u"))) = ?', [$normalized]);
+                  
+                // 3. LIKE por palabras sueltas para capturar espacios diferentes
+                $words = explode(' ', $normalized);
+                foreach (array_filter($words) as $word) {
+                    if (strlen($word) >= 3) {
+                        $q->orWhereRaw('LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(razon_social, "ó","o"), "á","a"), "é","e"), "í","i"), "ú","u")) LIKE ?', ['%' . $word . '%'])
+                          ->orWhereRaw('LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(nombre, "ó","o"), "á","a"), "é","e"), "í","i"), "ú","u")) LIKE ?', ['%' . $word . '%']);
+                    }
+                }
+
+                // 4. Coincidencia sin acentos Y sin espacios (para PUNTOELASTIC vs PUNTO ELASTIC)
+                $queryNoSpaces = str_replace(' ', '', $normalized);
+                if (strlen($queryNoSpaces) >= 3) {
+                    $q->orWhereRaw('LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(razon_social, " ",""), "ó","o"), "á","a"), "é","e"), "í","i"), "ú","u")) LIKE ?', ['%' . $queryNoSpaces . '%'])
+                      ->orWhereRaw('LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(nombre, " ",""), "ó","o"), "á","a"), "é","e"), "í","i"), "ú","u")) LIKE ?', ['%' . $queryNoSpaces . '%']);
+                }
+            })
             ->whereHas('activeProjects');
     }
 
